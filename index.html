@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Runner - Neon Escape</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #0d0e15;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        h1 {
+            color: #00f0ff;
+            text-shadow: 0 0 10px #00f0ff, 0 0 20px #00f0ff;
+            margin-bottom: 10px;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            background: linear-gradient(180deg, #141622 0%, #1a1c2e 100%);
+            border: 4px solid #ff007f;
+            border-radius: 10px;
+            box-shadow: 0 0 20px #ff007f, inset 0 0 15px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        #player {
+            position: absolute;
+            left: 50px;
+            bottom: 0;
+            width: 40px;
+            height: 50px;
+            background-color: #00f0ff;
+            box-shadow: 0 0 15px #00f0ff;
+            border-radius: 4px;
+            transition: bottom 0.1s ease;
+        }
+
+        .obstacle {
+            position: absolute;
+            right: -50px;
+            bottom: 0;
+            width: 30px;
+            height: 60px;
+            background-color: #ff007f;
+            box-shadow: 0 0 15px #ff007f;
+            border-radius: 4px;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #00f0ff;
+            text-shadow: 0 0 5px #00f0ff;
+            pointer-events: none;
+        }
+
+        #screen-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(13, 14, 21, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #screen-overlay h2 {
+            font-size: 2.5rem;
+            color: #ff007f;
+            text-shadow: 0 0 15px #ff007f;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid #00f0ff;
+            color: #00f0ff;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #00f0ff;
+            color: #0d0e15;
+            box-shadow: 0 0 20px #00f0ff;
+        }
+
+        .instructions {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #8a8dbe;
+            text-align: center;
+        }
+
+        /* Chão decorativo neon */
+        #floor-line {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 4px;
+            background-color: #ff007f;
+            box-shadow: 0 0 10px #ff007f;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Cyber Runner</h1>
+    
+    <div id="game-container">
+        <div id="ui-layer">
+            <div id="score-display">PONTOS: 0</div>
+            <div id="highscore-display">RECORDE: 0</div>
+        </div>
+
+        <div id="screen-overlay">
+            <h2 id="overlay-title">NEON ESCAPE</h2>
+            <button id="start-btn" onclick="startGame()">Jogar</button>
+            <p class="instructions">Pressione <b>ESPAÇO</b> ou <b>CLIQUE</b> na tela para pular.</p>
+        </div>
+
+        <div id="player"></div>
+        <div id="floor-line"></div>
+    </div>
+
+    <script>
+        const player = document.getElementById('player');
+        const container = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const highscoreDisplay = document.getElementById('highscore-display');
+        const overlay = document.getElementById('screen-overlay');
+        const overlayTitle = document.getElementById('overlay-title');
+        const startBtn = document.getElementById('start-btn');
+
+        let isJumping = false;
+        let isGameOver = true;
+        let score = 0;
+        let highscore = localStorage.getItem('cyber_highscore') || 0;
+        let obstacleTimeout;
+        let gameLoopInterval;
+        let obstacles = [];
+        let gameSpeed = 5;
+
+        highscoreDisplay.innerText = `RECORDE: ${highscore}`;
+
+        // Controle de pulo do Jogador
+        function jump() {
+            if (isJumping || isGameOver) return;
+            isJumping = true;
+            
+            let position = 0;
+            // Animação de subida e descida física simples
+            let upInterval = setInterval(() => {
+                if (position >= 150) {
+                    clearInterval(upInterval);
+                    // Descida
+                    let downInterval = setInterval(() => {
+                        if (position <= 0) {
+                            clearInterval(downInterval);
+                            isJumping = false;
+                        }
+                        position -= 6;
+                        player.style.bottom = position + 'px';
+                    }, 12);
+                }
+                position += 8;
+                player.style.bottom = position + 'px';
+            }, 12);
+        }
+
+        // Detectar teclas e cliques
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (isGameOver) startGame();
+                else jump();
+            }
+        });
+        container.addEventListener('click', () => {
+            if (isGameOver) startGame();
+            else jump();
+        });
+
+        // Gerar obstáculos aleatórios
+        function spawnObstacle() {
+            if (isGameOver) return;
+
+            const obstacle = document.createElement('div');
+            obstacle.classList.add('obstacle');
+            obstacle.style.right = '-50px';
+            // Variação de altura para ficar dinâmico
+            obstacle.style.height = Math.floor(Math.random() * (70 - 40) + 40) + 'px';
+            container.appendChild(obstacle);
+            obstacles.push(obstacle);
+
+            // Tempo aleatório para o próximo obstáculo diminuindo com a velocidade
+            let nextSpawn = Math.random() * (2000 - 900) + 900 - (gameSpeed * 20);
+            obstacleTimeout = setTimeout(spawnObstacle, Math.max(nextSpawn, 600));
+        }
+
+        // Loop principal da lógica do jogo
+        function updateGame() {
+            if (isGameOver) return;
+
+            // Incrementa score devagar
+            score++;
+            scoreDisplay.innerText = `PONTOS: ${score}`;
+
+            // Aumenta a velocidade progressivamente
+            if (score % 300 === 0) {
+                gameSpeed += 0.5;
+            }
+
+            // Movimentar e checar colisão dos obstáculos
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                let currentRight = parseInt(obs.style.right);
+                
+                // Mover para a esquerda
+                obs.style.right = (currentRight + gameSpeed) + 'px';
+
+                // Dados de posição para colisão (Hitbox)
+                let playerRect = player.getBoundingClientRect();
+                let obsRect = obs.getBoundingClientRect();
+
+                // Detecção exata de colisão por sobreposição de caixas
+                if (
+                    playerRect.left < obsRect.right &&
+                    playerRect.right > obsRect.left &&
+                    playerRect.bottom > obsRect.top
+                ) {
+                    gameOver();
+                    return;
+                }
+
+                // Remove obstáculo se saiu da tela
+                if (currentRight > 850) {
+                    obs.remove();
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        function startGame() {
+            // Reset de variáveis
+            isGameOver = false;
+            score = 0;
+            gameSpeed = 6;
+            obstacles.forEach(obs => obs.remove());
+            obstacles = [];
+            scoreDisplay.innerText = "PONTOS: 0";
+            overlay.style.display = 'none';
+
+            // Iniciar loops
+            gameLoopInterval = setInterval(updateGame, 1000 / 60); // 60 FPS
+            spawnObstacle();
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            clearInterval(gameLoopInterval);
+            clearTimeout(obstacleTimeout);
+            
+            // Salvar Highscore
+            if (score > highscore) {
+                highscore = score;
+                localStorage.setItem('cyber_highscore', highscore);
+                highscoreDisplay.innerText = `RECORDE: ${highscore}`;
+            }
+
+            // Atualizar UI de fim de jogo
+            overlayTitle.innerText = "FIM DE JOGO";
+            startBtn.innerText = "Tentar de Novo";
+            overlay.style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
